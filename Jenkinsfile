@@ -3,12 +3,12 @@ pipeline {
 
   environment {
     APP_NS        = 'apps'                          // nginx runs here
-    DOCKER_REPO   = '<your-dockerhub-user>/my-nginx'// change this!
-    IMAGE_TAG     = "${env.BUILD_NUMBER}"           // or use GIT_COMMIT
+    DOCKER_REPO   = 'tanmoyjames/my-nginx'          // change this to your DockerHub repo
+    IMAGE_TAG     = "${env.BUILD_NUMBER}"           // build number as tag
     KANIKO_IMAGE  = 'gcr.io/kaniko-project/executor:latest'
     KUBECTL_URL   = 'https://dl.k8s.io/release/v1.30.3/bin/linux/amd64/kubectl'
-    CONTEXT_PATH  = "git://${env.GIT_URL?.replace('https://','') ?: ''}" // fallback set below
-    DOCKERCFG_MNT = '/kaniko/.docker'               // where dockerhub-secret will mount
+    CONTEXT_PATH  = "git://${env.GIT_URL?.replace('https://','') ?: ''}" 
+    DOCKERCFG_MNT = '/kaniko/.docker'               // where dockerhub-secret mounts
   }
 
   options {
@@ -28,9 +28,8 @@ pipeline {
             sudo mv kubectl /usr/local/bin/ || mv kubectl ${WORKSPACE}/kubectl && export PATH=${WORKSPACE}:$PATH
           fi
 
-          # Fallback CONTEXT if GIT_URL not exported (some SCM configs)
+          # Fallback CONTEXT if GIT_URL not exported
           if [ -z "${GIT_URL}" ]; then
-            # Use the current repo remote
             GURL=$(git config --get remote.origin.url || true)
             if [ -n "$GURL" ]; then
               echo "GIT_URL from git remote: $GURL"
@@ -49,12 +48,12 @@ pipeline {
           # Clean any previous job
           kubectl -n ${APP_NS} delete job kaniko-build --ignore-not-found=true
 
-          # Resolve context: build directly from git@commit for reproducibility
+          # Resolve context
           GIT_REMOTE=$(git config --get remote.origin.url)
           GIT_SHA=$(git rev-parse --short=12 HEAD)
           [ -z "$GIT_REMOTE" ] && { echo "No git remote found"; exit 1; }
 
-          cat <<'EOF' > /tmp/kaniko-job.yaml
+          cat <<EOF > /tmp/kaniko-job.yaml
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -108,7 +107,7 @@ EOF
       steps {
         sh '''
           set -e
-          # Update the Deployment image (container name is 'nginx' in your chart)
+          # Update Deployment image (container name = nginx in chart)
           kubectl -n ${APP_NS} set image deployment/my-nginx nginx=${DOCKER_REPO}:${IMAGE_TAG}
 
           # Wait for rollout to finish
