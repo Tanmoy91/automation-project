@@ -3,11 +3,10 @@ pipeline {
 
   environment {
     APP_NS        = 'apps'                          // nginx runs here
-    DOCKER_REPO   = 'tanmoyjames/my-nginx'          // change this to your DockerHub repo
+    DOCKER_REPO   = 'tanmoyjames/my-nginx'          // your DockerHub repo
     IMAGE_TAG     = "${env.BUILD_NUMBER}"           // build number as tag
     KANIKO_IMAGE  = 'gcr.io/kaniko-project/executor:latest'
     KUBECTL_URL   = 'https://dl.k8s.io/release/v1.30.3/bin/linux/amd64/kubectl'
-    CONTEXT_PATH  = "git://${env.GIT_URL?.replace('https://','') ?: ''}" 
     DOCKERCFG_MNT = '/kaniko/.docker'               // where dockerhub-secret mounts
   }
 
@@ -50,6 +49,7 @@ pipeline {
 
           # Resolve context
           GIT_REMOTE=$(git config --get remote.origin.url)
+          BRANCH_NAME=${BRANCH_NAME:-main}
           GIT_SHA=$(git rev-parse --short=12 HEAD)
           [ -z "$GIT_REMOTE" ] && { echo "No git remote found"; exit 1; }
 
@@ -69,14 +69,12 @@ spec:
       - name: kaniko
         image: ${KANIKO_IMAGE}
         args:
-          - --context=${GIT_REMOTE}
-          - --git=branch=${BRANCH_NAME:-main}
+          - --context=${GIT_REMOTE}#refs/heads/${BRANCH_NAME}
           - --dockerfile=helm-charts/my-nginx/Dockerfile
           - --destination=${DOCKER_REPO}:${IMAGE_TAG}
           - --destination=${DOCKER_REPO}:latest
           - --snapshotMode=time
-          - --use-new-run
-          - --verbosity=info
+          - --verbosity=debug
           - --docker-config=${DOCKERCFG_MNT}
         volumeMounts:
         - name: docker-config
@@ -96,9 +94,15 @@ EOF
           kubectl apply -f /tmp/kaniko-job.yaml
 
           echo "Waiting for Kaniko to complete..."
-          kubectl -n ${APP_NS} wait --for=condition=complete job/kaniko-build --timeout=15m
+          kubectl -n ${APP_NS} wait --for=condition=complete job/kaniko-build --timeout=15m || {
+            echo "❌ Kaniko job failed or timed out. Dumping pod logs..."
+            kubectl -n ${APP_NS} logs -l job-name=kaniko-build --all-containers=true --tail=200 || true
+            exit 1
+          }
+
+          echo "✅ Kaniko job completed successfully."
           echo "Kaniko logs:"
-          kubectl -n ${APP_NS} logs job/kaniko-build --all-containers=true || true
+          kubectl -n ${APP_NS} logs -l job-name=kaniko-build --all-containers=true --tail=100 || true
         '''
       }
     }
