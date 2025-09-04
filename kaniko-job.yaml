@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kaniko-build
+  namespace: apps
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      serviceAccountName: jenkins   # RBAC সহ ServiceAccount (cluster-wide access)
+      restartPolicy: Never
+      containers:
+      - name: kaniko
+        image: gcr.io/kaniko-project/executor:latest
+        args:
+          - --context=git://github.com/Tanmoy91/automation-project.git#refs/heads/main
+          - --dockerfile=helm-charts/my-nginx/Dockerfile
+          - --destination=tanmoy91/automation-project:latest
+          - --cache=true
+        volumeMounts:
+          - name: docker-config
+            mountPath: /kaniko/.docker
+      volumes:
+        - name: docker-config
+          secret:
+            secretName: dockerhub-secret
