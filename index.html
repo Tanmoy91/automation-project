@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>LAMP Stack on Kubernetes - Step-by-Step Guide by Tanmoy</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #eaf4fc, #ffffff);
+      color: #333;
+      margin: 0;
+      padding: 2rem;
+      max-width: 1000px;
+      margin: auto;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      text-align: center;
+      color: #004080;
+      margin-bottom: 1.5rem;
+    }
+
+    .highlight {
+      background: #d9f0ff;
+      border-left: 6px solid #17a2b8;
+      padding: 1rem;
+      font-style: italic;
+      border-radius: 6px;
+      margin-bottom: 2rem;
+    }
+
+    .section {
+      background: #ffffff;
+      border-left: 5px solid #007BFF;
+      box-shadow: 0 5px 12px rgba(0, 0, 0, 0.08);
+      padding: 1.5rem 2rem;
+      margin-bottom: 2rem;
+      border-radius: 10px;
+      transition: transform 0.2s ease;
+    }
+
+    .section:hover {
+      transform: scale(1.01);
+    }
+
+    h2 {
+      color: #0056b3;
+      margin-top: 0;
+    }
+
+    pre {
+      background: #f5f7fa;
+      border-left: 4px solid #007BFF;
+      padding: 1rem;
+      overflow-x: auto;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      margin-top: 1rem;
+    }
+
+    code {
+      font-family: 'Courier New', monospace;
+      background-color: #e8edf3;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 0.95rem;
+    }
+
+    ul {
+      padding-left: 1.2rem;
+      margin: 1rem 0;
+    }
+
+    ul li {
+      margin-bottom: 0.5rem;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 3rem;
+      color: #666;
+      font-size: 0.95rem;
+      padding-top: 1rem;
+      border-top: 1px solid #ccc;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🚀 Complete LAMP Stack Setup on Kubernetes</h1>
+  <p class="highlight">This guide will help you build, deploy, and access a LAMP (Linux, Apache, MySQL, PHP) stack running on Kubernetes using your own custom Docker image.</p>
+
+  <div class="section">
+    <h2>📁 Step 1: Project Structure</h2>
+    <p>Create your project folder like this:</p>
+    <pre><code>lamp/
+├── php-apache/
+│   ├── Dockerfile
+│   └── src/
+│       └── index.php ← (This guide page)
+├── mysql-deployment.yaml
+└── lamp-app.yaml  </code></pre>
+  </div>
+
+  <div class="section">
+    <h2>🛠️ Step 2: Create Dockerfile</h2>
+    <p>Create a <code>Dockerfile</code> inside <code>php-apache/</code> directory with the following content:</p>
+    <pre><code>FROM php:7.4-apache
+
+# Install system dependencies and mysqli extension
+RUN apt-get update && \
+    apt-get install -y libpng-dev libjpeg-dev libonig-dev libxml2-dev libzip-dev zip unzip && \
+    docker-php-ext-install mysqli && \
+    docker-php-ext-enable mysqli
+
+# Enable Apache mod_rewrite
+RUN a2enmod rewrite
+
+# Prioritize index.html over index.php
+RUN echo "DirectoryIndex index.html index.php" > /etc/apache2/conf-enabled/dir.override.conf
+
+# Copy app code
+COPY src/ /var/www/html/
+
+EXPOSE 80</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>📦 Step 3: Build & Load Docker Image</h2>
+    <p>Run the following commands to build and load the image into the Kubernetes container runtime:</p>
+    <pre><code>cd php-apache
+nerdctl build -t lamp-php-apache:v1 .
+
+nerdctl save -o lamp-php-apache-v1.tar lamp-php-apache:v1
+nerdctl --namespace=k8s.io load -i lamp-php-apache-v1.tar</code></pre>
+  </div>
+
+   <div class="section">
+    <h2>☸️ Step 4: Create Kubernetes Deployment</h2>
+    <p>Create a file named <code>mysql-deployment.yaml</code> and paste the following:</p>
+    <pre><code>apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: lamp
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: lamp
+spec:
+  selector:
+    matchLabels:
+      app: mysql
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - image: mysql:5.7
+        name: mysql
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: password
+        ports:
+        - containerPort: 3306
+        volumeMounts:
+        - name: mysql-storage
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-storage
+        persistentVolumeClaim:
+          claimName: mysql-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: lamp
+spec:
+  ports:
+    - port: 3306
+  selector:
+    app: mysql</code></pre>
+    <p>Apply the configuration:</p>
+    <pre><code>kubectl apply -f mysql-deployment.yaml</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>☸️ Step 5: Create Kubernetes Deployment</h2>
+    <p>Create a file named <code>lamp-deployment.yaml</code> and paste the following:</p>
+    <pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lamp-app
+  namespace: lamp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lamp-app
+  template:
+    metadata:
+      labels:
+        app: lamp-app
+    spec:
+      containers:
+      - name: lamp-container
+        image: lamp-php-apache:v1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lamp-service
+  namespace: lamp
+spec:
+  type: NodePort
+  selector:
+    app: lamp-app
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080</code></pre>
+    <p>Apply the configuration:</p>
+    <pre><code>kubectl apply -f lamp-deployment.yaml</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>🔄 Step 6: Update Deployment (v2 or newer)</h2>
+    <p>If you make changes and build a new image (e.g., v2), run:</p>
+    <pre><code>nerdctl build -t lamp-php-apache:v2 .
+nerdctl save -o lamp-php-apache-v2.tar lamp-php-apache:v2
+nerdctl --namespace=k8s.io load -i lamp-php-apache-v2.tar
+
+kubectl set image deployment/lamp-app lamp-container=lamp-php-apache:v2 -n lamp</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>🌐 Step 7: Access the Web App</h2>
+    <p>Open your browser and navigate to:</p>
+    <pre><code>http://localhost:30080</code></pre>
+    <p>This guide page should be visible!</p>
+  </div>
+
+  <div class="section">
+    <h2>📌 Tips & Commands</h2>
+    <ul>
+      <li><strong>Hard Refresh:</strong> Press <code>Ctrl + Shift + R</code> to reload HTML updates.</li>
+      <li><strong>Check Pod Status:</strong> <code>kubectl get pods -n lamp</code></li>
+      <li><strong>Debug Logs:</strong> <code>kubectl logs &lt;pod-name&gt; -n lamp</code></li>
+      <li><strong>Describe Service:</strong> <code>kubectl describe svc lamp-service -n lamp</code></li>
+    </ul>
+  </div>
+
+  <footer>
+    Created with ❤️ by <strong>Tanmoy Chatterjee</strong> | © 2025
+  </footer>
+</body>
+</html>
