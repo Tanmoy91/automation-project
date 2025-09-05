@@ -59,8 +59,8 @@ pipeline {
       steps {
         sh '''
           set -e
-          kubectl -n ${APP_NS} set image deployment/my-nginx nginx=${DOCKER_REPO}:${IMAGE_TAG}
-          kubectl -n ${APP_NS} rollout status deployment/my-nginx --timeout=5m
+          kubectl -n apps set image deployment/my-nginx-my-nginx nginx=tanmoyjames/my-nginx:${BUILD_NUMBER}
+          kubectl -n ${APP_NS} rollout status deployment/my-nginx-my-nginx --timeout=5m
         '''
       }
     }
