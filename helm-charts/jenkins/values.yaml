@@ -1,0 +1,18 @@
+replicaCount: 1
+
+image:
+  repository: docker.io/tanmoyjames/jenkins-kubectl
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 8080
+  nodePort: 30090
+
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClass: "local-path"
+
+appsNamespace: "apps"   # Kaniko / Jenkins deploy target namespace

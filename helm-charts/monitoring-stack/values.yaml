@@ -1,0 +1,15 @@
+grafana:
+  replicaCount: 1
+  adminUser: "admin"
+  adminPass: "admin123"
+  service:
+    type: NodePort
+    port: 3000
+    nodePort: 30085
+
+prometheus:
+  replicaCount: 1
+  service:
+    type: NodePort
+    port: 9090
+    nodePort: 30901

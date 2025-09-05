@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "my-nginx.fullname" . }}
+  labels:
+    app: {{ include "my-nginx.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "my-nginx.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "my-nginx.fullname" . }}
+    spec:
+      imagePullSecrets:
+        - name: dockerhub-secret
+      containers:
+        - name: nginx
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 80
