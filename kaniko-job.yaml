@@ -13,10 +13,10 @@ spec:
         - name: kaniko
           image: gcr.io/kaniko-project/executor:latest
           args:
-            - "--context=git://github.com/tanmoy91/automation-project.git"
-            - "--dockerfile=Dockerfile"
+            - "--context=git://github.com/Tanmoy91/automation-project.git#refs/heads/main"
+            - "--dockerfile=helm-charts/my-nginx/Dockerfile"
             - "--destination=docker.io/tanmoyjames/my-nginx:latest"
-            - "--verbosity=info"
+            - "--cache=true"
           volumeMounts:
             - name: docker-config
               mountPath: /kaniko/.docker/
@@ -24,3 +24,6 @@ spec:
         - name: docker-config
           secret:
             secretName: dockerhub-secret
+            items:
+              - key: .dockerconfigjson
+                path: config.json
