@@ -5,7 +5,7 @@ pipeline {
     APP_NS        = 'apps'                          // namespace
     DOCKER_REPO   = 'tanmoyjames/my-nginx'          // DockerHub repo
     IMAGE_TAG     = "${env.BUILD_NUMBER}"           // Jenkins build number
-    KANIKO_JOB    = "${WORKSPACE}/kaniko-job.yaml"  // existing YAML file
+    KANIKO_JOB    = "${WORKSPACE}/kaniko-job.yaml"  // YAML file (template-based)
     KUBECTL_URL   = 'https://dl.k8s.io/release/v1.30.3/bin/linux/amd64/kubectl'
   }
 
@@ -36,7 +36,10 @@ pipeline {
           # Clean up any old job
           kubectl -n ${APP_NS} delete job kaniko-build --ignore-not-found=true
 
-          echo "Applying pre-written Kaniko Job YAML..."
+          echo "Substituting image repo/tag in Kaniko job..."
+          sed -i "s|__IMAGE__|${DOCKER_REPO}:${IMAGE_TAG}|g" ${KANIKO_JOB}
+
+          echo "Applying Kaniko Job YAML..."
           kubectl apply -f ${KANIKO_JOB} -n ${APP_NS}
 
           echo "Waiting for Kaniko job to complete..."
