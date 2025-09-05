@@ -7,19 +7,19 @@ spec:
   backoffLimit: 0
   template:
     spec:
-      serviceAccountName: jenkins-sa   # RBAC-enabled ServiceAccount
+      serviceAccountName: jenkins-sa
       restartPolicy: Never
       containers:
-      - name: kaniko
-        image: gcr.io/kaniko-project/executor:latest
-        args:
-          - --context=https://github.com/Tanmoy91/automation-project.git#refs/heads/main
-          - --dockerfile=helm-charts/my-nginx/Dockerfile
-          - --destination=__IMAGE__     # ← Jenkinsfile sed দিয়ে replace করবে
-          - --cache=true
-        volumeMounts:
-          - name: docker-config
-            mountPath: /kaniko/.docker
+        - name: kaniko
+          image: gcr.io/kaniko-project/executor:latest
+          args:
+            - "--context=git://github.com/tanmoy91/automation-project.git"
+            - "--dockerfile=Dockerfile"
+            - "--destination=docker.io/tanmoyjames/my-nginx:latest"
+            - "--verbosity=info"
+          volumeMounts:
+            - name: docker-config
+              mountPath: /kaniko/.docker/
       volumes:
         - name: docker-config
           secret:
