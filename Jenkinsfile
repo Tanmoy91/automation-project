@@ -2,10 +2,10 @@ pipeline {
   agent any
 
   environment {
-    APP_NS        = 'apps'                          // namespace
-    DOCKER_REPO   = 'tanmoyjames/my-nginx'          // DockerHub repo
-    IMAGE_TAG     = "${env.BUILD_NUMBER}"           // Jenkins build number
-    KANIKO_JOB    = "${WORKSPACE}/kaniko-job.yaml"  // YAML file (template-based)
+    APP_NS        = 'apps'
+    DOCKER_REPO   = 'tanmoyjames/my-nginx'
+    IMAGE_TAG     = "${env.BUILD_NUMBER}"
+    KANIKO_JOB    = "${WORKSPACE}/kaniko-job.yaml"
     KUBECTL_URL   = 'https://dl.k8s.io/release/v1.30.3/bin/linux/amd64/kubectl'
   }
 
@@ -18,7 +18,6 @@ pipeline {
       steps {
         sh '''
           set -e
-          # Ensure kubectl is installed
           if ! command -v kubectl >/dev/null 2>&1; then
             echo "Downloading kubectl..."
             curl -fsSL -o kubectl ${KUBECTL_URL}
@@ -33,24 +32,21 @@ pipeline {
       steps {
         sh '''
           set -e
-          # Clean up any old job
           kubectl -n ${APP_NS} delete job kaniko-build --ignore-not-found=true
 
-          echo "Substituting image repo/tag in Kaniko job..."
-          sed -i "s|__IMAGE__|${DOCKER_REPO}:${IMAGE_TAG}|g" ${KANIKO_JOB}
+          echo "Creating job with image ${DOCKER_REPO}:${IMAGE_TAG} ..."
+          cp ${KANIKO_JOB} kaniko-job-build.yaml
+          sed -i "s|__IMAGE__|${DOCKER_REPO}:${IMAGE_TAG}|g" kaniko-job-build.yaml
 
-          echo "Applying Kaniko Job YAML..."
-          kubectl apply -f ${KANIKO_JOB} -n ${APP_NS}
+          kubectl apply -f kaniko-job-build.yaml -n ${APP_NS}
 
-          echo "Waiting for Kaniko job to complete..."
           kubectl -n ${APP_NS} wait --for=condition=complete job/kaniko-build --timeout=15m || {
-            echo "❌ Kaniko job failed or timed out. Dumping logs..."
+            echo "❌ Kaniko job failed or timed out"
             kubectl -n ${APP_NS} logs -l job-name=kaniko-build --all-containers=true --tail=200 || true
             exit 1
           }
 
-          echo "✅ Kaniko job completed successfully."
-          kubectl -n ${APP_NS} logs -l job-name=kaniko-build --all-containers=true --tail=100 || true
+          echo "✅ Kaniko job pushed image ${DOCKER_REPO}:${IMAGE_TAG}"
         '''
       }
     }
@@ -59,7 +55,7 @@ pipeline {
       steps {
         sh '''
           set -e
-          kubectl -n apps set image deployment/my-nginx-my-nginx nginx=tanmoyjames/my-nginx:${BUILD_NUMBER}
+          kubectl -n ${APP_NS} set image deployment/my-nginx-my-nginx nginx=${DOCKER_REPO}:${IMAGE_TAG}
           kubectl -n ${APP_NS} rollout status deployment/my-nginx-my-nginx --timeout=5m
         '''
       }
@@ -69,7 +65,6 @@ pipeline {
   post {
     always {
       sh '''
-        echo "Cleaning up Kaniko job..."
         kubectl -n ${APP_NS} delete job kaniko-build --ignore-not-found=true || true
       '''
     }
